@@ -1,1 +1,1 @@
-echo "successful execution" > ~/testing.dat
+echo "successful execution" > /tmp/testing.dat
