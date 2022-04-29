@@ -1,0 +1,141 @@
+{
+    "tql": [
+      {
+        "name": "intercept",
+        "tql": "1",
+        "prior": {"type": "NORMAL", "location": 0, "scale": 3},
+        "scaling": "NO",
+        "componentGroup": "Baseline"
+      },
+      {
+  "name": "stockout",
+  "tql": "-(max(daily_values.balance) <= max(product_locations.custom_sales_buffer,0))/10",
+  "prior": {"type": "NORMAL", "location": 0, "scale": 10},
+  "coefficientLowerBound": 0,
+  "scaling": "NO"
+},
+      {
+        "name": "intercept_after_first_sales_date",
+        "tql": "coalesce($start  >= product_locations.first_historical_sales_date ? 1 : 0, 0)",
+        "prior": {"type": "NORMAL","location": 0, "scale": 1},
+        "scaling": "NO",
+        "componentGroup": "Baseline"
+      }
+    ],
+    "templatedVariables": [
+      {
+        "name": "'weekday_' + @weekday",
+        "tqlTemplate": "(dayofweek($start) == @weekday ? 6/7 : -1/7) || 0",
+        "templateParameters": [
+          {"name": "weekday", "values": [0, 1, 2, 3, 4, 5]}
+        ],
+        "useIf": "product_locations.use_weekdays_in_model_estimation",
+        "prior": { "type": "NORMAL", "location": 0, "scale": 1},
+        "scaling": "NO",
+        "componentGroup": "Weekdays"
+      },
+      {
+        "name": "@end_date && @history_length && null || 'recent_weekday_' + @weekday",
+        "tqlTemplate": "$start >= @end_date - @history_length && (dayofweek($start) == @weekday ? 6/7 : -1/7) || 0",
+        "templateParameters": [
+          {"name": "weekday", "values": [0, 1, 2, 3, 4, 5]},
+          {"name": "end_date", "tql": "coalesce(product_locations.forecast_model_estimation_data_end_date, $today-1)", "dimension": "product_locations"},
+          {"name": "history_length", "tql": "product_locations.week_profile_history_length || 0", "dimension": "product_locations"}
+        ],
+        "useIf": "product_locations.use_weekdays_in_model_estimation && (product_locations.week_profile_history_length||0 > 0)",
+        "prior": { "type": "NORMAL", "location": 0, "scale": 1},
+        "scaling": "NO",
+        "componentGroup": "Weekdays"
+      },
+      
+      {
+        "name": "'event_trend_' + @type + '_' + @length",
+        "tqlTemplate": "restrict[location_campaigns](($start - max(location_campaigns.type == @type && location_campaigns.start_date))/@length || 0)",
+        "templateParameters": [
+            {"name": "type", "tql": "location_campaigns.use_trend_variable && location_campaigns.type", "dimension": "location_campaigns"},
+            {"name": "length", "tql": "max(location_campaigns.use_trend_variable && (location_campaigns.end_date - location_campaigns.start_date)) || 1", "dimension": "groups_1"}
+        ],
+        "useIf": "product_locations.use_events_in_model_estimation",
+        "prior": {"type": "NORMAL","location": 0, "scale": 0.1},
+        "scaling": "NO",
+      "componentGroup": "Events"
+      },
+      {
+        "name": "'event_' + @type + '_weekday_' + @weekday",
+        "tqlTemplate": "restrict[location_campaigns](max(location_campaigns.type == @type && (dayofweek($start) == @weekday ? 6/7 : -1/7)) || 0)",
+        "templateParameters": [
+            {"name": "type", "tql": "location_campaigns.use_weekday_variables && location_campaigns.type", "dimension": "location_campaigns"},
+            {"name": "weekday", "values": [0, 1, 2, 3, 4, 5]}
+        ],
+        "useIf": "product_locations.use_events_in_model_estimation",
+        "prior": {"type": "NORMAL","location": 0, "scale": 0.1},
+        "scaling": "NO",
+      "componentGroup": "Events"
+      },
+      {
+        "name": "'manual_step_change_' + year(@date) + '-' + (month(@date) < 10 ? '0'+ month(@date) : month(@date)) + '-' + (dayofmonth(@date) < 10 ? '0'+ dayofmonth(@date) : dayofmonth(@date))",
+        "tqlTemplate": "@rampLength=1;min(max(0, $start-@date), @rampLength)/@rampLength || 0",
+        "templateParameters": [
+            {"name": "date", "tql": "forecast_inputs.type = 'STEP_CHANGE' && forecast_inputs.date", "dimension": "forecast_inputs"}
+        ],
+        "prior": {"type": "NORMAL", "location": 0, "scale": 1},
+        "scaling": "NO",
+      "componentGroup": "Baseline"
+      },
+      {
+        "name": "'manual_trend_change_' + year(@date) + '-' + (month(@date) < 10 ? '0'+ month(@date) : month(@date)) + '-' + (dayofmonth(@date) < 10 ? '0'+ dayofmonth(@date) : dayofmonth(@date))",
+        "tqlTemplate": "@start_date=coalesce(max(product_locations.forecast_model_estimation_data_start_date), 0);@end_date=coalesce(max(product_locations.forecast_model_estimation_data_end_date), $today-1);@extrapolate=min(forecast_models.extrapolate_trend_days_ahead);max(0, min($start, @end_date+@extrapolate)-@date)/(@end_date-@start_date) || 0",
+        "templateParameters": [
+            {"name": "date", "tql": "forecast_inputs.type = 'TREND_CHANGE' && forecast_inputs.date", "dimension": "forecast_inputs"}
+        ],
+        "prior": {"type": "NORMAL", "location": 0, "scale": 1},
+        "scaling": "NO",
+      "componentGroup": "Baseline"
+      },
+      {
+        "name": "'manual_week_profile_change_' + @weekday + '_' + year(@date) + '-' + (month(@date) < 10 ? '0'+ month(@date) : month(@date)) + '-' + (dayofmonth(@date) < 10 ? '0'+ dayofmonth(@date) : dayofmonth(@date))",
+        "tqlTemplate": "$start >= @date && dayofweek($start) == @weekday || 0",
+        "templateParameters": [
+          {"name": "weekday", "values": [0, 1, 2, 3, 4, 5]},
+          {"name": "date", "tql": "forecast_inputs.type = 'WEEK_PROFILE_CHANGE' && forecast_inputs.date", "dimension": "forecast_inputs"}
+        ],
+        "prior": { "type": "NORMAL", "location": 0, "scale": 1},
+        "scaling": "NO",
+      "componentGroup": "Weekdays"
+      }
+    ],
+    "trend": {
+      "useIf": "product_locations.use_trend_in_model_estimation",
+      "prior": { "type": "NORMAL", "location": 0, "scale": 0.2},
+      "componentGroup": "Baseline"
+
+    },
+    "ramps": {
+      "interval": 15,
+      "useIf": "product_locations.use_changepoints_in_model_estimation && product_locations.changepoint_type = 'STEP_CHANGE'",
+      "prior": {"type": "NORMAL", "location": 0, "scale": 0.1},
+      "minDaysAfterLastRamp": 15,
+      "rampLength":2,
+      "componentGroup": "Baseline"
+
+    },
+    "changepoints": {
+      "interval": 30,
+      "useIf": "product_locations.use_changepoints_in_model_estimation && product_locations.changepoint_type = 'TREND'",
+      "prior": {"type": "NORMAL", "location": 0, "scale": 0.1},
+      "minDaysAfterLastChangepoint": 30,
+      "componentGroup": "Baseline"
+
+    },
+      "fourier":[
+      {
+        "period": 365.25,
+        "termPairCount":"product_locations.seasonality_terms",
+        "useIf":"product_locations.use_seasonality_in_model_estimation",
+        "prior": { "type": "NORMAL", "location": 0, "scale": 0.2},
+        "componentGroup": "Seasonality"
+      }
+
+    ]
+    
+  }
