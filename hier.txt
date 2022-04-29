@@ -1,0 +1,87 @@
+{
+  "tql": [
+    {
+      "name": "'price_elasticity'",
+      "tql": "restrict[campaigns](max(ln(min(product_location_campaigns.campaign_price / product_location_campaigns.normal_sales_price)) || 0, product_locations.minimum_price_index || 0))",
+      "useIf": "product_locations.use_price_in_model_estimation",
+      "prior": {
+        "type": "NORMAL",
+        "locationPrior": { "type": "NORMAL", "location": 0, "scale": 1},
+        "scalePrior": { "type": "NORMAL", "location": 0.2, "scale": 1}
+      },
+      "scaling": "NO",
+      "coefficientLowerBound": -3.0,
+      "inputForEmpiricalBayes": true,
+      "componentGroup": "Promotions",
+      "grouping": [
+			 {"group": ["products.code"], "count": 2},
+			 {"group": ["groups_5.code"], "count": 2},
+			 {"group": ["groups_4.code"], "count": 2}
+		]
+    }
+  ],
+  "templatedVariables": [
+    {
+      "name": "'event_indicator_' + @type",
+      "tqlTemplate": "restrict[location_campaigns](sum(location_campaigns.type == @type) > 0 || 0)",
+      "templateParameters": [
+          {"name": "type", "tql": "location_campaigns.use_indicator_variable && location_campaigns.type", "dimension": "location_campaigns"}
+      ],
+      "useIf": "product_locations.use_events_in_model_estimation",
+      "prior": {
+        "type": "NORMAL",
+        "locationPrior": { "type": "NORMAL", "location": 0, "scale": 1},
+        "scalePrior": { "type": "NORMAL", "location": 1, "scale": 1}
+      },
+      "scaling": "NO",
+      "inputForEmpiricalBayes": true,
+      "componentGroup": "Events",
+      "grouping": [
+			 {"group": ["groups_5.code","locations.code"], "count": 2},
+			 {"group": ["groups_4.code","locations.code"], "count": 2}
+		]
+    },
+    {
+      "name": "'promotion_type_' + @type",
+      "tqlTemplate": "restrict[campaigns](sum(campaigns.campaign_class == 'PROMOTION' && product_location_campaigns.type == @type) > 0 || 0)",
+      "templateParameters": [
+          {"name": "type", "tql": "campaigns.campaign_class == 'PROMOTION' && product_location_campaigns.type", "dimension": "product_location_campaigns"}
+      ],
+      "useIf": "product_locations.use_promotions_in_model_estimation",
+      "prior": {
+        "type": "NORMAL",
+        "locationPrior": { "type": "NORMAL", "location": 0, "scale": 1},
+        "scalePrior": { "type": "NORMAL", "location": 0.5, "scale": 1}
+      },
+      "scaling": "NO",
+      "inputForEmpiricalBayes": true,
+      "componentGroup": "Promotions",
+      "grouping": [
+			 {"group": ["products.code"], "count": 2},
+			 {"group": ["groups_5.code"], "count": 2},
+			 {"group": ["groups_4.code"], "count": 2}
+		]
+    },
+    {
+      "name": "'promotion_subtype_' + @subtype",
+      "tqlTemplate": "restrict[campaigns](sum(campaigns.campaign_class == 'PROMOTION' && product_location_campaigns.subtype == @subtype) > 0 || 0)",
+      "templateParameters": [
+          {"name": "subtype", "tql": "campaigns.campaign_class == 'PROMOTION' && product_location_campaigns.subtype", "dimension": "product_location_campaigns"}
+      ],
+      "useIf": "product_locations.use_promotions_in_model_estimation",
+      "prior": {
+        "type": "NORMAL",
+        "locationPrior": { "type": "NORMAL", "location": 0, "scale": 1},
+        "scalePrior": { "type": "NORMAL", "location": 0.5, "scale": 1}
+      },
+      "scaling": "NO",
+      "inputForEmpiricalBayes": true,
+      "componentGroup": "Promotions",
+      "grouping": [
+			 {"group": ["products.code"], "count": 2},
+			 {"group": ["groups_5.code"], "count": 2},
+			 {"group": ["groups_4.code"], "count": 2}
+		]
+    }
+  ]
+}
